@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LOLO CEJ Scraping — Live Monitor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    header {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    header h1 span { color: #38bdf8; }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .status-dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .status-dot.red { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
+    .status-dot.yellow { background: #eab308; box-shadow: 0 0 6px #eab30888; }
+    .status-dot.pulse { animation: pulse 1.5s infinite; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .refresh-info { color: #94a3b8; font-size: 12px; }
+    .container { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-bottom: 24px; }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #475569; }
+    .card-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-value {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .card-sub { font-size: 13px; color: #64748b; margin-top: 6px; }
+
+    .card-value.healthy { color: #22c55e; }
+    .card-value.degraded { color: #eab308; }
+    .card-value.unhealthy { color: #ef4444; }
+
+    .component-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .component-item {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .component-item .label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .component-item .value { font-size: 20px; font-weight: 600; margin-top: 4px; }
+    .component-item .detail { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+    .log-section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .log-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .log-header h3 { font-size: 14px; font-weight: 600; }
+    .log-body {
+      height: 320px;
+      overflow-y: auto;
+      padding: 4px 0;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .log-entry {
+      padding: 2px 16px;
+      border-left: 3px solid transparent;
+      transition: background 0.15s;
+    }
+    .log-entry:hover { background: #0f172a; }
+    .log-entry.info { border-left-color: #38bdf8; }
+    .log-entry.success { border-left-color: #22c55e; }
+    .log-entry.warn { border-left-color: #eab308; }
+    .log-entry.error { border-left-color: #ef4444; }
+    .log-time { color: #64748b; margin-right: 8px; }
+    .log-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-right: 6px;
+      text-transform: uppercase;
+    }
+    .log-tag.info { background: #0c4a6e; color: #7dd3fc; }
+    .log-tag.success { background: #14532d; color: #86efac; }
+    .log-tag.warn { background: #713f12; color: #fde047; }
+    .log-tag.error { background: #7f1d1d; color: #fca5a5; }
+
+    .browser-bar {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .browser-slot {
+      flex: 1;
+      height: 8px;
+      border-radius: 4px;
+      background: #334155;
+      transition: background 0.3s;
+    }
+    .browser-slot.active { background: #38bdf8; }
+    .browser-slot.available { background: #22c55e; }
+
+    .btn {
+      background: #334155;
+      border: 1px solid #475569;
+      color: #e2e8f0;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #475569; }
+
+    .interval-selector {
+      display: flex;
+      gap: 4px;
+    }
+    .interval-btn {
+      background: transparent;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+    .interval-btn:hover { border-color: #64748b; color: #e2e8f0; }
+    .interval-btn.active { background: #38bdf8; border-color: #38bdf8; color: #0f172a; font-weight: 600; }
+
+    .uptime-bar {
+      display: flex;
+      gap: 2px;
+      margin-top: 10px;
+    }
+    .uptime-tick {
+      flex: 1;
+      height: 20px;
+      border-radius: 2px;
+      background: #334155;
+      transition: background 0.3s;
+    }
+    .uptime-tick.up { background: #22c55e; }
+    .uptime-tick.down { background: #ef4444; }
+    .uptime-tick.unknown { background: #334155; }
+
+    .error-banner {
+      background: #7f1d1d;
+      border: 1px solid #ef4444;
+      border-radius: 8px;
+      padding: 12px 20px;
+      margin-bottom: 16px;
+      display: none;
+      font-size: 13px;
+      color: #fca5a5;
+    }
+    .error-banner.visible { display: flex; align-items: center; gap: 10px; }
+
+    .log-body::-webkit-scrollbar { width: 6px; }
+    .log-body::-webkit-scrollbar-track { background: #1e293b; }
+    .log-body::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+    /* === Timeline Dashboard Styles === */
+    .timeline-section {
+      margin-top: 24px;
+    }
+    .timeline-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #f1f5f9;
+    }
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .filter-bar select {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #e2e8f0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      min-width: 180px;
+      cursor: pointer;
+    }
+    .filter-bar select:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+    .time-range-btns {
+      display: flex;
+      gap: 4px;
+    }
+    .time-range-btn {
+      background: transparent;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+    }
+    .time-range-btn:hover { border-color: #64748b; color: #e2e8f0; }
+    .time-range-btn.active { background: #38bdf8; border-color: #38bdf8; color: #0f172a; font-weight: 600; }
+
+    .timeline-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .timeline-card:hover { border-color: #475569; }
+    .timeline-card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .timeline-card-header .name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+    .timeline-card-header .name span {
+      color: #94a3b8;
+      font-weight: 400;
+      margin-left: 6px;
+    }
+    .schedule-badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .schedule-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .schedule-badge.passed {
+      background: #14532d;
+      color: #86efac;
+    }
+    .schedule-badge.upcoming {
+      background: #713f12;
+      color: #fde047;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 1px;
+      background: #334155;
+      border-bottom: 1px solid #334155;
+    }
+    .stat-cell {
+      background: #1e293b;
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .stat-cell .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .stat-cell .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .stat-cell .stat-value.green { color: #22c55e; }
+    .stat-cell .stat-value.red { color: #ef4444; }
+    .stat-cell .stat-value.blue { color: #38bdf8; }
+    .stat-cell .stat-value.yellow { color: #eab308; }
+    .stat-cell .stat-value.purple { color: #a78bfa; }
+    .stat-cell .stat-value.default { color: #e2e8f0; }
+
+    .timeline-track-container {
+      padding: 16px 20px;
+      border-bottom: 1px solid #334155;
+    }
+    .timeline-track-label {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .timeline-track {
+      position: relative;
+      height: 40px;
+      background: #0f172a;
+      border-radius: 6px;
+      overflow: visible;
+    }
+    .timeline-track-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .tl-marker {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      z-index: 2;
+    }
+    .tl-marker.schedule {
+      background: #eab308;
+      opacity: 0.7;
+    }
+    .tl-marker.now {
+      background: #38bdf8;
+      z-index: 3;
+    }
+    .tl-marker-label {
+      position: absolute;
+      top: -16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tl-marker.schedule .tl-marker-label { color: #eab308; }
+    .tl-marker.now .tl-marker-label { color: #38bdf8; }
+
+    .tl-event {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 4;
+      transition: transform 0.15s;
+    }
+    .tl-event:hover {
+      transform: translate(-50%, -50%) scale(1.6);
+      z-index: 5;
+    }
+    .tl-event.COMPLETED { background: #22c55e; }
+    .tl-event.STARTED { background: #38bdf8; animation: pulse 1.5s infinite; }
+    .tl-event.FAILED { background: #ef4444; }
+    .tl-event.RETRYING { background: #eab308; }
+
+    .tl-tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #334155;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 10;
+      color: #e2e8f0;
+      pointer-events: none;
+      line-height: 1.5;
+    }
+    .tl-event:hover .tl-tooltip {
+      display: block;
+    }
+
+    .failures-section {
+      padding: 0 20px 16px;
+    }
+    .failures-toggle {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .failures-toggle:hover { color: #e2e8f0; }
+    .failures-list {
+      display: none;
+      margin-top: 8px;
+    }
+    .failures-list.open { display: block; }
+    .failure-item {
+      background: #0f172a;
+      border-left: 3px solid #ef4444;
+      border-radius: 0 6px 6px 0;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .failure-item .fi-label { color: #64748b; }
+    .failure-item .fi-value { color: #fca5a5; }
+    .failure-item .fi-case { color: #38bdf8; }
+
+    .timeline-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    /* Firm-level grouping */
+    .firm-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .firm-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .firm-header:hover { background: #253348; }
+    .firm-header .firm-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .firm-header .firm-arrow {
+      font-size: 12px;
+      color: #64748b;
+      transition: transform 0.2s;
+    }
+    .firm-header .firm-arrow.open { transform: rotate(90deg); }
+    .firm-summary {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .firm-summary .fs-stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .firm-summary .fs-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .firm-body {
+      display: none;
+    }
+    .firm-body.open { display: block; }
+
+    .bank-subcard {
+      border-top: 1px solid #334155;
+    }
+    .bank-subcard-header {
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #172033;
+    }
+    .bank-subcard-header .bank-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .bank-subcard-header .bank-name .case-count {
+      font-size: 11px;
+      font-weight: 400;
+      color: #64748b;
+    }
+
+    /* Queue status bar */
+    .queue-status-bar {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 12px 20px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .queue-status-bar .qs-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .queue-status-bar .qs-items {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .queue-status-bar .qs-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+    }
+    .queue-status-bar .qs-item .qs-count {
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .queue-status-bar .qs-item .qs-label {
+      color: #94a3b8;
+    }
+
+    /* Last run info */
+    .last-run-info {
+      padding: 10px 20px;
+      background: #172033;
+      border-bottom: 1px solid #334155;
+      font-size: 12px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .last-run-info .lri-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .last-run-info .lri-label {
+      color: #64748b;
+    }
+    .last-run-info .lri-value {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+    .last-run-info .lri-value.none {
+      color: #ef4444;
+      font-style: italic;
+    }
+    .last-run-info .lri-value.ok {
+      color: #22c55e;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span>LOLO</span> CEJ Scraping Monitor</h1>
+    <div class="header-right">
+      <div class="interval-selector">
+        <button class="interval-btn" data-interval="3000">3s</button>
+        <button class="interval-btn active" data-interval="5000">5s</button>
+        <button class="interval-btn" data-interval="10000">10s</button>
+        <button class="interval-btn" data-interval="30000">30s</button>
+      </div>
+      <span class="refresh-info" id="lastUpdate">--</span>
+      <span id="connectionStatus"><span class="status-dot green pulse"></span>Live</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="error-banner" id="errorBanner">
+      <span>Connection lost — retrying...</span>
+    </div>
+
+    <div class="grid">
+      <!-- Overall Status -->
+      <div class="card">
+        <div class="card-title">Service Status</div>
+        <div class="card-value healthy" id="overallStatus">--</div>
+        <div class="card-sub" id="uptimeText">Uptime: --</div>
+        <div class="uptime-bar" id="uptimeBar"></div>
+      </div>
+
+      <!-- Database -->
+      <div class="card">
+        <div class="card-title">Database (MySQL)</div>
+        <div class="card-value" id="dbStatus">--</div>
+        <div class="card-sub" id="dbLatency">Latency: --</div>
+      </div>
+
+      <!-- Redis -->
+      <div class="card">
+        <div class="card-title">Redis (BullMQ)</div>
+        <div class="card-value" id="redisStatus">--</div>
+        <div class="card-sub" id="redisLatency">Latency: --</div>
+      </div>
+    </div>
+
+    <!-- Browser Pool -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-title">Browser Pool</div>
+      <div class="component-grid">
+        <div class="component-item">
+          <div class="label">Active</div>
+          <div class="value" id="bpActive" style="color: #38bdf8;">0</div>
+        </div>
+        <div class="component-item">
+          <div class="label">Available</div>
+          <div class="value" id="bpAvailable" style="color: #22c55e;">0</div>
+        </div>
+        <div class="component-item">
+          <div class="label">Max</div>
+          <div class="value" id="bpMax" style="color: #94a3b8;">0</div>
+        </div>
+      </div>
+      <div class="browser-bar" id="browserBar"></div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="log-section">
+      <div class="log-header">
+        <h3>Activity Log</h3>
+        <button class="btn" onclick="clearLogs()">Clear</button>
+      </div>
+      <div class="log-body" id="logBody"></div>
+    </div>
+
+    <!-- Scraping Timeline -->
+    <div class="timeline-section">
+      <h2>Scraping Timeline</h2>
+
+      <div class="filter-bar">
+        <select id="filterCustomer">
+          <option value="">All Law Firms</option>
+        </select>
+        <div class="time-range-btns">
+          <button class="time-range-btn" data-hours="12">12h</button>
+          <button class="time-range-btn active" data-hours="24">24h</button>
+          <button class="time-range-btn" data-hours="48">48h</button>
+        </div>
+      </div>
+
+      <div id="queueStatusBar"></div>
+
+      <div id="timelineCards">
+        <div class="timeline-empty">Loading timeline data...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.port ? `${window.location.protocol}//${window.location.hostname}:4000/api/scraping/v1` : "/api/scraping/v1";
+    let interval = 5000;
+    let timer = null;
+    let uptimeHistory = new Array(60).fill("unknown");
+    let logEntries = [];
+    let prevHealth = null;
+    let consecutiveErrors = 0;
+
+    // --- Formatting ---
+    function formatUptime(seconds) {
+      if (seconds < 60) return `${seconds}s`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+
+    function timeStr() {
+      return new Date().toLocaleTimeString("en-US", { hour12: false });
+    }
+
+    function addLog(level, msg) {
+      logEntries.unshift({ time: timeStr(), level, msg });
+      if (logEntries.length > 200) logEntries.length = 200;
+      renderLogs();
+    }
+
+    function renderLogs() {
+      const el = document.getElementById("logBody");
+      el.innerHTML = logEntries.map(e =>
+        `<div class="log-entry ${e.level}">` +
+        `<span class="log-time">${e.time}</span>` +
+        `<span class="log-tag ${e.level}">${e.level}</span>` +
+        `${e.msg}</div>`
+      ).join("");
+    }
+
+    function clearLogs() {
+      logEntries = [];
+      renderLogs();
+    }
+
+    // --- Status color ---
+    function statusClass(status) {
+      if (status === "healthy" || status === "up") return "healthy";
+      if (status === "degraded") return "degraded";
+      return "unhealthy";
+    }
+
+    function statusLabel(status) {
+      if (status === "up") return "UP";
+      if (status === "down") return "DOWN";
+      return (status || "UNKNOWN").toUpperCase();
+    }
+
+    // --- Update UI ---
+    function updateHealth(data) {
+      consecutiveErrors = 0;
+      document.getElementById("errorBanner").classList.remove("visible");
+      document.getElementById("connectionStatus").innerHTML =
+        '<span class="status-dot green pulse"></span>Live';
+
+      // Overall
+      const s = data.status || "unknown";
+      const el = document.getElementById("overallStatus");
+      el.textContent = s.toUpperCase();
+      el.className = "card-value " + statusClass(s);
+      document.getElementById("uptimeText").textContent = "Uptime: " + formatUptime(data.uptime || 0);
+
+      // Uptime bar
+      uptimeHistory.push(s === "healthy" ? "up" : "down");
+      if (uptimeHistory.length > 60) uptimeHistory.shift();
+      document.getElementById("uptimeBar").innerHTML = uptimeHistory
+        .map(t => `<div class="uptime-tick ${t}"></div>`).join("");
+
+      const checks = data.checks || {};
+
+      // Database
+      const db = checks.database || {};
+      const dbEl = document.getElementById("dbStatus");
+      dbEl.textContent = statusLabel(db.status);
+      dbEl.className = "card-value " + statusClass(db.status);
+      document.getElementById("dbLatency").textContent =
+        db.latency != null ? `Latency: ${db.latency}ms` : `Error: ${db.error || "--"}`;
+
+      // Redis
+      const redis = checks.redis || {};
+      const redisEl = document.getElementById("redisStatus");
+      redisEl.textContent = statusLabel(redis.status);
+      redisEl.className = "card-value " + statusClass(redis.status);
+      document.getElementById("redisLatency").textContent =
+        redis.latency != null ? `Latency: ${redis.latency}ms` : `Error: ${redis.error || "--"}`;
+
+      // Browser pool
+      const bp = checks.browserPool || {};
+      document.getElementById("bpActive").textContent = bp.active ?? 0;
+      document.getElementById("bpAvailable").textContent = bp.available ?? 0;
+      document.getElementById("bpMax").textContent = bp.max ?? 0;
+
+      const max = bp.max || 3;
+      const active = bp.active || 0;
+      const available = bp.available || 0;
+      let bar = "";
+      for (let i = 0; i < max; i++) {
+        if (i < active) bar += '<div class="browser-slot active"></div>';
+        else if (i < active + available) bar += '<div class="browser-slot available"></div>';
+        else bar += '<div class="browser-slot"></div>';
+      }
+      document.getElementById("browserBar").innerHTML = bar;
+
+      // Log changes
+      if (prevHealth === null) {
+        addLog("info", `Dashboard connected — service is ${s.toUpperCase()}`);
+      } else {
+        if (prevHealth.status !== s) {
+          const lvl = s === "healthy" ? "success" : "warn";
+          addLog(lvl, `Service status changed: ${prevHealth.status} → ${s}`);
+        }
+        const prevDb = prevHealth.checks?.database?.status;
+        if (prevDb && prevDb !== db.status) {
+          addLog(db.status === "up" ? "success" : "error", `Database: ${prevDb} → ${db.status}`);
+        }
+        const prevRedis = prevHealth.checks?.redis?.status;
+        if (prevRedis && prevRedis !== redis.status) {
+          addLog(redis.status === "up" ? "success" : "error", `Redis: ${prevRedis} → ${redis.status}`);
+        }
+        if ((prevHealth.checks?.browserPool?.active || 0) !== active) {
+          addLog("info", `Browser pool active: ${prevHealth.checks?.browserPool?.active || 0} → ${active}`);
+        }
+      }
+
+      prevHealth = JSON.parse(JSON.stringify(data));
+      document.getElementById("lastUpdate").textContent = "Updated: " + timeStr();
+    }
+
+    // --- Fetch ---
+    async function poll() {
+      try {
+        const res = await fetch(API + "/health");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        updateHealth(data);
+      } catch (err) {
+        consecutiveErrors++;
+        document.getElementById("errorBanner").classList.add("visible");
+        document.getElementById("connectionStatus").innerHTML =
+          '<span class="status-dot red pulse"></span>Disconnected';
+
+        uptimeHistory.push("down");
+        if (uptimeHistory.length > 60) uptimeHistory.shift();
+        document.getElementById("uptimeBar").innerHTML = uptimeHistory
+          .map(t => `<div class="uptime-tick ${t}"></div>`).join("");
+
+        if (consecutiveErrors <= 3 || consecutiveErrors % 10 === 0) {
+          addLog("error", `Health fetch failed: ${err.message}`);
+        }
+        document.getElementById("lastUpdate").textContent = "Failed: " + timeStr();
+      }
+    }
+
+    // --- Interval selector ---
+    document.querySelectorAll(".interval-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".interval-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        interval = parseInt(btn.dataset.interval);
+        clearInterval(timer);
+        timer = setInterval(poll, interval);
+        addLog("info", `Refresh interval set to ${interval / 1000}s`);
+      });
+    });
+
+    // ============================================================
+    // Timeline Dashboard
+    // ============================================================
+    let timelineHours = 24;
+    let selectedCustomerId = "";
+    let customersLoaded = false;
+    let openFirms = {};       // track which firm cards are expanded
+
+    // --- Load customers dropdown ---
+    async function loadCustomers() {
+      try {
+        const res = await fetch(API + "/dashboard/customers");
+        if (!res.ok) return;
+        const data = await res.json();
+        const sel = document.getElementById("filterCustomer");
+        sel.innerHTML = '<option value="">All Law Firms</option>';
+        (data.customers || []).forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.companyName;
+          sel.appendChild(opt);
+        });
+        customersLoaded = true;
+      } catch (e) {
+        // silently retry on next poll
+      }
+    }
+
+    document.getElementById("filterCustomer").addEventListener("change", function () {
+      selectedCustomerId = this.value;
+      pollTimeline();
+    });
+
+    // --- Time range buttons ---
+    document.querySelectorAll(".time-range-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".time-range-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        timelineHours = parseInt(btn.dataset.hours);
+        pollTimeline();
+      });
+    });
+
+    // --- Helpers ---
+    function parseHour(h) {
+      if (typeof h === "number") return { hour: h, minute: 0, label: String(h).padStart(2, '0') + ":00", totalMin: h * 60 };
+      if (typeof h === "string" && h.includes(":")) {
+        const [hh, mm] = h.split(":").map(Number);
+        return { hour: hh, minute: mm || 0, label: h, totalMin: hh * 60 + (mm || 0) };
+      }
+      const n = parseInt(h, 10);
+      return { hour: n, minute: 0, label: String(n).padStart(2, '0') + ":00", totalMin: n * 60 };
+    }
+
+    function toggleFirm(firmName) {
+      openFirms[firmName] = !openFirms[firmName];
+      const card = document.querySelector(`.firm-card[data-firm="${CSS.escape(firmName)}"]`);
+      if (!card) return;
+      const body = card.querySelector('.firm-body');
+      const arrow = card.querySelector('.firm-arrow');
+      if (body) body.classList.toggle("open", openFirms[firmName]);
+      if (arrow) arrow.classList.toggle("open", openFirms[firmName]);
+    }
+
+    function toggleFailures(id) {
+      const list = document.getElementById("failList_" + id);
+      const arrow = document.getElementById("failArrow_" + id);
+      if (!list) return;
+      if (list.classList.contains("open")) {
+        list.classList.remove("open");
+        arrow.innerHTML = "&#9654;";
+      } else {
+        list.classList.add("open");
+        arrow.innerHTML = "&#9660;";
+      }
+    }
+
+    // --- Build a single bank sub-card ---
+    function renderBankSubcard(entry, uid, now, windowStart, windowMs, currentMinutes) {
+      const s = entry.stats;
+      const sched = entry.notificationSchedule || {};
+      const parsedHours = (sched.hours || []).map(parseHour);
+
+      // Schedule badges
+      const badges = parsedHours.map(p => {
+        const passed = p.totalMin <= currentMinutes;
+        return `<span class="schedule-badge ${passed ? 'passed' : 'upcoming'}">${p.label}</span>`;
+      }).join("");
+
+      // Stats row
+      const statsHtml = `
+        <div class="stats-row">
+          <div class="stat-cell"><div class="stat-label">Case Files</div><div class="stat-value default">${s.totalCaseFiles}</div></div>
+          <div class="stat-cell"><div class="stat-label">Completed</div><div class="stat-value green">${s.jobsCompleted}</div></div>
+          <div class="stat-cell"><div class="stat-label">Failed</div><div class="stat-value red">${s.jobsFailed}</div></div>
+          <div class="stat-cell"><div class="stat-label">In Progress</div><div class="stat-value blue">${s.jobsInProgress}</div></div>
+          <div class="stat-cell"><div class="stat-label">Retrying</div><div class="stat-value yellow">${s.jobsRetrying}</div></div>
+          <div class="stat-cell"><div class="stat-label">Changes</div><div class="stat-value purple">${s.totalChanges}</div></div>
+          <div class="stat-cell"><div class="stat-label">Avg Duration</div><div class="stat-value default">${s.avgDurationMs != null ? (s.avgDurationMs / 1000).toFixed(1) + 's' : '--'}</div></div>
+          <div class="stat-cell"><div class="stat-label">Pending Notif.</div><div class="stat-value ${s.pendingNotifications > 0 ? 'yellow' : 'green'}">${s.pendingNotifications}</div></div>
+        </div>`;
+
+      // Timeline track events
+      const events = entry.timelineEvents || [];
+      const eventsHtml = events.map(ev => {
+        const evTime = new Date(ev.startedAt);
+        const pct = Math.max(0, Math.min(100, ((evTime - windowStart) / windowMs) * 100));
+        const dur = ev.durationMs != null ? (ev.durationMs / 1000).toFixed(1) + 's' : '--';
+        const tooltipLines = [
+          `Status: ${ev.status}`, `Type: ${ev.jobType}`,
+          `Case: ${ev.caseFileId}`,
+          `Time: ${evTime.toLocaleTimeString("en-US", { hour12: false })}`,
+          `Duration: ${dur}`,
+        ];
+        if (ev.changesDetected > 0) tooltipLines.push(`Changes: ${ev.changesDetected}`);
+        if (ev.errorCode) tooltipLines.push(`Error: ${ev.errorCode}`);
+        if (ev.attempt > 1) tooltipLines.push(`Attempt: ${ev.attempt}`);
+        return `<div class="tl-event ${ev.status}" style="left:${pct}%"><div class="tl-tooltip">${tooltipLines.join('<br>')}</div></div>`;
+      }).join("");
+
+      // Schedule markers
+      const schedMarkers = parsedHours.map(p => {
+        const schedTime = new Date(now);
+        schedTime.setHours(p.hour, p.minute, 0, 0);
+        if (schedTime > now) schedTime.setDate(schedTime.getDate() - 1);
+        const pct = ((schedTime - windowStart) / windowMs) * 100;
+        if (pct < 0 || pct > 100) return '';
+        return `<div class="tl-marker schedule" style="left:${pct}%"><span class="tl-marker-label">${p.label}</span></div>`;
+      }).join("");
+
+      const nowPct = ((now - windowStart) / windowMs) * 100;
+      const nowMarker = `<div class="tl-marker now" style="left:${Math.min(100, nowPct)}%"><span class="tl-marker-label">NOW</span></div>`;
+
+      const trackHtml = `
+        <div class="timeline-track-container">
+          <div class="timeline-track-label">
+            <span>${windowStart.toLocaleTimeString("en-US", { hour12: false, hour: '2-digit', minute: '2-digit' })}</span>
+            <span>${now.toLocaleTimeString("en-US", { hour12: false, hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div class="timeline-track">
+            <div class="timeline-track-inner">
+              ${schedMarkers}${nowMarker}${eventsHtml}
+            </div>
+          </div>
+        </div>`;
+
+      // Failures
+      const failures = entry.recentFailures || [];
+      let failuresHtml = '';
+      if (failures.length > 0) {
+        const fItems = failures.map(f => `
+          <div class="failure-item">
+            <span class="fi-label">Case </span><span class="fi-case">${f.caseFileId}</span>
+            <span class="fi-label"> | Error: </span><span class="fi-value">${f.errorCode || 'UNKNOWN'}</span>
+            <span class="fi-label"> | </span><span class="fi-value">${(f.errorMessage || '').substring(0, 120)}</span>
+            <span class="fi-label"> | Attempt: </span><span style="color:#e2e8f0">${f.attempt}</span>
+            <span class="fi-label"> | Duration: </span><span style="color:#e2e8f0">${f.durationMs != null ? (f.durationMs / 1000).toFixed(1) + 's' : '--'}</span>
+          </div>`).join("");
+        failuresHtml = `
+          <div class="failures-section">
+            <button class="failures-toggle" onclick="toggleFailures('${uid}')">
+              <span id="failArrow_${uid}">&#9654;</span> ${failures.length} recent failure(s)
+            </button>
+            <div class="failures-list" id="failList_${uid}">${fItems}</div>
+          </div>`;
+      }
+
+      // Last run info
+      const lastJobAt = s.lastJobAt ? new Date(s.lastJobAt) : null;
+      const firstJobAt = s.firstJobAt ? new Date(s.firstJobAt) : null;
+      const totalJobs = s.totalJobs || 0;
+
+      let runStatus = '';
+      if (totalJobs === 0) {
+        runStatus = `<span class="lri-item"><span class="lri-label">Status:</span> <span class="lri-value none">No jobs ran in this period</span></span>`;
+      } else {
+        const completionPct = totalJobs > 0 ? Math.round(((s.jobsCompleted) / totalJobs) * 100) : 0;
+        runStatus = `
+          <span class="lri-item"><span class="lri-label">Jobs ran:</span> <span class="lri-value">${totalJobs}</span></span>
+          <span class="lri-item"><span class="lri-label">Completion:</span> <span class="lri-value ${completionPct === 100 ? 'ok' : ''}">${completionPct}%</span></span>`;
+      }
+
+      const lastRunHtml = `
+        <div class="last-run-info">
+          <span class="lri-item"><span class="lri-label">Last job:</span> <span class="lri-value ${lastJobAt ? '' : 'none'}">${lastJobAt ? lastJobAt.toLocaleTimeString("en-US", { hour12: false }) : 'Never'}</span></span>
+          <span class="lri-item"><span class="lri-label">First job:</span> <span class="lri-value ${firstJobAt ? '' : 'none'}">${firstJobAt ? firstJobAt.toLocaleTimeString("en-US", { hour12: false }) : '--'}</span></span>
+          ${runStatus}
+          ${s.jobsFailed > 0 ? '<span class="lri-item"><span class="lri-label">Failed:</span> <span class="lri-value" style="color:#ef4444">' + s.jobsFailed + '</span></span>' : ''}
+        </div>`;
+
+      return `
+        <div class="bank-subcard">
+          <div class="bank-subcard-header">
+            <div class="bank-name">${entry.bankName} <span class="case-count">(${s.totalCaseFiles} case files)</span></div>
+            <div class="schedule-badges">${badges}</div>
+          </div>
+          ${lastRunHtml}
+          ${statsHtml}
+          ${trackHtml}
+          ${failuresHtml}
+        </div>`;
+    }
+
+    // --- Render timeline grouped by firm ---
+    function renderTimeline(data) {
+      const container = document.getElementById("timelineCards");
+      const entries = data.timeline || [];
+      const qs = data.queueStats || {};
+
+      // Render queue status bar
+      const qsBar = document.getElementById("queueStatusBar");
+      const mon = qs.monitor || {};
+      const ini = qs.initial || {};
+      const pri = qs.priority || {};
+      const qWaiting = (mon.waiting || 0) + (ini.waiting || 0) + (pri.waiting || 0) + (mon.prioritized || 0) + (ini.prioritized || 0) + (pri.prioritized || 0);
+      const qActive = (mon.active || 0) + (ini.active || 0) + (pri.active || 0);
+      const qCompleted = (mon.completed || 0) + (ini.completed || 0) + (pri.completed || 0);
+      const qFailed = (mon.failed || 0) + (ini.failed || 0) + (pri.failed || 0);
+      const qDelayed = (mon.delayed || 0) + (ini.delayed || 0) + (pri.delayed || 0);
+      qsBar.innerHTML = `
+        <div class="queue-status-bar" style="border-radius:8px;margin-bottom:16px;">
+          <span class="qs-title">Job Queues</span>
+          <div class="qs-items">
+            <span class="qs-item"><span class="qs-count" style="color:#eab308">${qWaiting}</span><span class="qs-label">waiting</span></span>
+            <span class="qs-item"><span class="qs-count" style="color:#38bdf8">${qActive}</span><span class="qs-label">active</span></span>
+            <span class="qs-item"><span class="qs-count" style="color:#22c55e">${qCompleted}</span><span class="qs-label">completed</span></span>
+            <span class="qs-item"><span class="qs-count" style="color:#ef4444">${qFailed}</span><span class="qs-label">failed</span></span>
+            <span class="qs-item"><span class="qs-count" style="color:#a78bfa">${qDelayed}</span><span class="qs-label">delayed</span></span>
+          </div>
+          <span class="qs-title" style="margin-left:auto">Monitor: ${(mon.waiting || 0) + (mon.prioritized || 0)}w / ${mon.active || 0}a</span>
+          <span class="qs-title">Initial: ${(ini.waiting || 0) + (ini.prioritized || 0)}w / ${ini.active || 0}a</span>
+          <span class="qs-title">Priority: ${(pri.waiting || 0) + (pri.prioritized || 0)}w / ${pri.active || 0}a</span>
+        </div>`;
+
+      if (entries.length === 0) {
+        container.innerHTML = '<div class="timeline-empty">No active scraping schedules found for the selected filters.</div>';
+        return;
+      }
+
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const windowStart = new Date(now.getTime() - timelineHours * 60 * 60 * 1000);
+      const windowMs = timelineHours * 60 * 60 * 1000;
+
+      // Group entries by customerName
+      const firms = {};
+      const firmOrder = [];
+      entries.forEach(e => {
+        if (!firms[e.customerName]) {
+          firms[e.customerName] = { banks: [], totals: { caseFiles: 0, completed: 0, failed: 0, inProgress: 0, totalJobs: 0, banks: 0 } };
+          firmOrder.push(e.customerName);
+        }
+        firms[e.customerName].banks.push(e);
+        const t = firms[e.customerName].totals;
+        t.caseFiles += e.stats.totalCaseFiles;
+        t.completed += e.stats.jobsCompleted;
+        t.failed += e.stats.jobsFailed;
+        t.inProgress += e.stats.jobsInProgress;
+        t.totalJobs += e.stats.totalJobs || 0;
+        t.banks++;
+      });
+
+      // If only one firm selected, auto-expand it
+      if (firmOrder.length === 1 && !(firmOrder[0] in openFirms)) {
+        openFirms[firmOrder[0]] = true;
+      }
+
+      container.innerHTML = firmOrder.map((firmName, fi) => {
+        const firm = firms[firmName];
+        const t = firm.totals;
+        const isOpen = openFirms[firmName] || false;
+        const firmKey = 'firm' + fi;
+
+        const bankCards = firm.banks.map((entry, bi) => {
+          const uid = firmKey + '_b' + bi;
+          return renderBankSubcard(entry, uid, now, windowStart, windowMs, currentMinutes);
+        }).join("");
+
+        // Summary dots
+        const failDot = t.failed > 0 ? '<span class="fs-dot" style="background:#ef4444"></span>' + t.failed + ' failed' : '';
+        const progDot = t.inProgress > 0 ? '<span class="fs-dot" style="background:#38bdf8"></span>' + t.inProgress + ' running' : '';
+        const doneDot = t.completed > 0 ? '<span class="fs-dot" style="background:#22c55e"></span>' + t.completed + ' done' : '';
+        const noneLabel = t.totalJobs === 0 ? '<span class="fs-dot" style="background:#eab308"></span>No jobs ran' : '';
+
+        return `
+          <div class="firm-card" data-firm="${firmName.replace(/"/g, '&quot;')}">
+            <div class="firm-header" onclick="toggleFirm(this.parentElement.dataset.firm)">
+              <div class="firm-name">
+                <span class="firm-arrow ${isOpen ? 'open' : ''}" id="firmArrow_${firmKey}">&#9654;</span>
+                ${firmName}
+              </div>
+              <div class="firm-summary">
+                <span class="fs-stat">${t.banks} bank(s)</span>
+                <span class="fs-stat">${t.caseFiles} cases</span>
+                ${doneDot ? '<span class="fs-stat">' + doneDot + '</span>' : ''}
+                ${failDot ? '<span class="fs-stat">' + failDot + '</span>' : ''}
+                ${progDot ? '<span class="fs-stat">' + progDot + '</span>' : ''}
+                ${noneLabel ? '<span class="fs-stat">' + noneLabel + '</span>' : ''}
+              </div>
+            </div>
+            <div class="firm-body ${isOpen ? 'open' : ''}" id="firmBody_${firmKey}">
+              ${bankCards}
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    // --- Poll timeline ---
+    async function pollTimeline() {
+      try {
+        let url = API + "/dashboard/timeline?hours=" + timelineHours;
+        if (selectedCustomerId) url += "&customerId=" + selectedCustomerId;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderTimeline(data);
+      } catch (e) {
+        const container = document.getElementById("timelineCards");
+        if (!container.querySelector(".firm-card")) {
+          container.innerHTML = '<div class="timeline-empty">Failed to load timeline data.</div>';
+        }
+      }
+    }
+
+    // --- Wrap original poll to also refresh timeline ---
+    const _origPoll = poll;
+    poll = async function () {
+      await _origPoll();
+      await pollTimeline();
+    };
+
+    // --- Start ---
+    loadCustomers();
+    poll();
+    timer = setInterval(poll, interval);
+  </script>
+</body>
+</html>
