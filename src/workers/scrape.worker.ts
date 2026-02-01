@@ -36,6 +36,7 @@ import * as fileRepo from "../persistence/repositories/file.repository";
 import * as casefileRepo from "../persistence/repositories/casefile.repository";
 import * as jobLogRepo from "../persistence/repositories/joblog.repository";
 import * as changelogRepo from "../persistence/repositories/changelog.repository";
+import * as messageRepo from "../persistence/repositories/message.repository";
 import * as s3Client from "../persistence/s3/s3.client";
 import { ScrapeResult, RawBinnacleEntry } from "../shared/types/scrape-result.types";
 import { ScrapeError } from "../shared/errors/scrape.errors";
@@ -43,6 +44,70 @@ import { ERROR_CODES } from "../config/constants";
 import { metrics } from "../monitoring/metrics.collector";
 import { logger } from "../monitoring/logger";
 import { JudicialCaseFile, Client, JudicialBinTypeBinnacle, JudicialBinProceduralStage } from "../persistence/db/models";
+
+/**
+ * Build the structured message body for a scan result.
+ * Contains only the new binnacles and notifications detected in this scan.
+ */
+function buildScanMessageBody(
+  caseFileId: number,
+  numberCaseFile: string,
+  changes: Array<{ changeType: string; fieldName?: string | null; oldValue?: string | null; newValue?: string | null; detectedAt: Date }>,
+  validBinnacles: RawBinnacleEntry[]
+) {
+  const newBinnacleChanges = changes.filter((c) => c.changeType === "NEW_BINNACLE");
+  const newNotificationChanges = changes.filter((c) => c.changeType === "NEW_NOTIFICATION");
+
+  const newBinnacles = newBinnacleChanges.map((c) => {
+    let parsedData: any = {};
+    try {
+      parsedData = JSON.parse(c.newValue || "{}");
+    } catch {
+      // ignore parse errors
+    }
+
+    // Try to find matching binnacle by index from parsed data
+    const matchingBin = parsedData.index != null
+      ? validBinnacles.find((b) => b.index === parsedData.index)
+      : undefined;
+
+    return {
+      resolutionDate: parsedData.resolutionDate || null,
+      entryDate: parsedData.entryDate || null,
+      notificationType: parsedData.notificationType || null,
+      acto: parsedData.acto || null,
+      fojas: parsedData.fojas ?? null,
+      folios: parsedData.folios ?? null,
+      sumilla: parsedData.sumilla || parsedData.lastPerformed || null,
+      userDescription: parsedData.userDescription || null,
+      notifications: (matchingBin?.notifications || []).map((n: any) => ({
+        notificationCode: n.notificationCode || n.notifCode || "",
+        addressee: n.addressee || "",
+        shipDate: n.shipDate || "",
+        deliveryMethod: n.deliveryMethod || "",
+      })),
+    };
+  });
+
+  const newNotifications = newNotificationChanges.map((c) => {
+    try {
+      return JSON.parse(c.newValue || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  return {
+    type: "cej-scan-result" as const,
+    caseFileId,
+    numberCaseFile,
+    scannedAt: new Date().toISOString(),
+    newBinnacles,
+    newNotifications,
+    totalNewBinnacles: newBinnacleChanges.length,
+    totalNewNotifications: newNotificationChanges.length,
+  };
+}
 
 /**
  * Process a single scraping job.
@@ -236,6 +301,37 @@ export async function processScrapeJob(
         notified: false,
       }));
       await changelogRepo.bulkCreate(changeRecords);
+    }
+
+    // Create scan message if new binnacles or notifications detected
+    if (detectionResult.hasChanges && !detectionResult.isFirstScrape) {
+      const newBinnacleChanges = detectionResult.changes.filter(
+        (c) => c.changeType === "NEW_BINNACLE" || c.changeType === "NEW_NOTIFICATION"
+      );
+
+      if (newBinnacleChanges.length > 0) {
+        try {
+          const botUser = await messageRepo.findBotUser(customerHasBankId);
+          if (botUser) {
+            const scanBody = buildScanMessageBody(
+              caseFileId,
+              numberCaseFile,
+              detectionResult.changes,
+              validBinnacles
+            );
+            await messageRepo.createScanMessage({
+              customerUserId: botUser.get("id") as number,
+              customerHasBankId,
+              caseFileId,
+              subject: `Escaneo CEJ - Exp. ${numberCaseFile} - ${newBinnacleChanges.length} cambio(s)`,
+              body: JSON.stringify(scanBody),
+              keyMessage: "cej-scan-result",
+            });
+          }
+        } catch (err) {
+          logger.warn({ caseFileId, error: (err as Error).message }, "Failed to create scan message");
+        }
+      }
     }
 
     // Update case file

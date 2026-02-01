@@ -528,6 +528,70 @@ JudicialBinProceduralStage.init(
 );
 
 // ============================================================
+// CUSTOMER_USER — existing backend model (read only, to find BOT user)
+// ============================================================
+export class CustomerUser extends Model {}
+CustomerUser.init(
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, field: "id_customer_user" },
+    name: { type: DataTypes.STRING(100), field: "name" },
+    dni: { type: DataTypes.STRING(8), field: "dni" },
+    email: { type: DataTypes.STRING(70), field: "email" },
+    customerId: { type: DataTypes.INTEGER, field: "customer_id_customer" },
+  },
+  { sequelize, tableName: "CUSTOMER_USER", modelName: "CUSTOMER_USER", timestamps: false }
+);
+
+// ============================================================
+// MESSAGE — existing backend model (write)
+// ============================================================
+export class Message extends Model {}
+Message.init(
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: "id_message" },
+    customerUserId: { type: DataTypes.INTEGER, field: "customer_user_id_customer_user" },
+    subject: { type: DataTypes.STRING(150), field: "subject" },
+    body: { type: DataTypes.TEXT("long"), field: "body" },
+    wasRead: { type: DataTypes.BOOLEAN, field: "was_read", defaultValue: false },
+    customerHasBankId: { type: DataTypes.INTEGER, field: "customer_has_bank_id_customer_has_bank" },
+    keyMessage: { type: DataTypes.STRING(150), field: "key_message" },
+    createdAt: { type: DataTypes.DATE, field: "created_at" },
+    updatedAt: { type: DataTypes.DATE, field: "updated_at" },
+    deletedAt: { type: DataTypes.DATE, field: "deleted_at" },
+  },
+  {
+    sequelize,
+    tableName: "MESSAGE",
+    modelName: "MESSAGE",
+    timestamps: true,
+    paranoid: true,
+  }
+);
+
+// ============================================================
+// MESSAGES_USERS — existing backend model (write)
+// ============================================================
+export class MessagesUsers extends Model {}
+MessagesUsers.init(
+  {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: "id_messages_users" },
+    messageId: { type: DataTypes.INTEGER, field: "message_id_message" },
+    customerUserId: { type: DataTypes.INTEGER, field: "customer_user_id_customer_user" },
+    customerHasBankId: { type: DataTypes.INTEGER, field: "customer_has_bank_id_customer_has_bank" },
+    createdAt: { type: DataTypes.DATE, field: "created_at" },
+    updatedAt: { type: DataTypes.DATE, field: "updated_at" },
+    deletedAt: { type: DataTypes.DATE, field: "deleted_at" },
+  },
+  {
+    sequelize,
+    tableName: "MESSAGES_USERS",
+    modelName: "MESSAGES_USERS",
+    timestamps: true,
+    paranoid: true,
+  }
+);
+
+// ============================================================
 // Associations
 // ============================================================
 CustomerHasBank.belongsTo(Customer, { foreignKey: "idCustomer", as: "customer" });
@@ -540,6 +604,11 @@ JudicialBinNotification.belongsTo(JudicialBinnacle, { foreignKey: "idJudicialBin
 JudicialBinFile.belongsTo(JudicialBinnacle, { foreignKey: "judicialBinnacleId", as: "judicialBinnacle" });
 ScrapeSnapshot.belongsTo(JudicialCaseFile, { foreignKey: "caseFileId", as: "caseFile" });
 ScrapeChangeLog.belongsTo(JudicialCaseFile, { foreignKey: "caseFileId", as: "caseFile" });
+CustomerUser.belongsTo(Customer, { foreignKey: "customerId", as: "customer" });
+Message.belongsTo(CustomerUser, { foreignKey: "customerUserId", as: "customerUser" });
+Message.belongsTo(CustomerHasBank, { foreignKey: "customerHasBankId", as: "customerHasBank" });
+MessagesUsers.belongsTo(Message, { foreignKey: "messageId", as: "message" });
+MessagesUsers.belongsTo(CustomerUser, { foreignKey: "customerUserId", as: "customerUser" });
 
 export default {
   ScrapeSnapshot,
@@ -556,4 +625,7 @@ export default {
   JudicialBinFile,
   JudicialBinTypeBinnacle,
   JudicialBinProceduralStage,
+  CustomerUser,
+  Message,
+  MessagesUsers,
 };
