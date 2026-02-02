@@ -22,12 +22,25 @@ export async function findBotUser(customerHasBankId: number): Promise<CustomerUs
 
   const customerId = chb.get("idCustomer") as number;
 
-  const botUser = await CustomerUser.findOne({
+  // Prefer a user whose name contains "Bot" to avoid picking deactivated users
+  // whose DNI happens to start with 0000000
+  let botUser = await CustomerUser.findOne({
     where: {
       customerId,
       dni: { [Op.like]: "0000000%" },
+      name: { [Op.like]: "%Bot%" },
     },
   });
+
+  // Fallback: any user with DNI pattern 0000000%
+  if (!botUser) {
+    botUser = await CustomerUser.findOne({
+      where: {
+        customerId,
+        dni: { [Op.like]: "0000000%" },
+      },
+    });
+  }
 
   if (!botUser) {
     logger.warn({ customerId, customerHasBankId }, "No BOT user found for customer");

@@ -442,7 +442,7 @@ JudicialBinNotification.init(
     notificationCode: { type: DataTypes.STRING(200), field: "notification_code" },
     addressee: { type: DataTypes.STRING(200), field: "addressee" },
     shipDate: { type: DataTypes.DATE, field: "ship_date" },
-    attachments: { type: DataTypes.STRING(200), field: "attachments" },
+    attachments: { type: DataTypes.TEXT, field: "attachments" },
     deliveryMethod: { type: DataTypes.STRING(200), field: "delivery_method" },
     resolutionDate: { type: DataTypes.DATE, field: "resolution_date" },
     notificationPrint: { type: DataTypes.DATE, field: "notification_print" },
@@ -575,7 +575,7 @@ export class MessagesUsers extends Model {}
 MessagesUsers.init(
   {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: "id_messages_users" },
-    messageId: { type: DataTypes.INTEGER, field: "message_id_message" },
+    messageId: { type: DataTypes.INTEGER, field: "message_id" },
     customerUserId: { type: DataTypes.INTEGER, field: "customer_user_id_customer_user" },
     customerHasBankId: { type: DataTypes.INTEGER, field: "customer_has_bank_id_customer_has_bank" },
     createdAt: { type: DataTypes.DATE, field: "created_at" },

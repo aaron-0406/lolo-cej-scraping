@@ -97,6 +97,12 @@ function buildScanMessageBody(
     }
   });
 
+  // Count notifications embedded in new binnacles + standalone NEW_NOTIFICATION changes
+  const embeddedNotificationCount = newBinnacles.reduce(
+    (sum, b) => sum + (b.notifications?.length || 0),
+    0
+  );
+
   return {
     type: "cej-scan-result" as const,
     caseFileId,
@@ -105,7 +111,7 @@ function buildScanMessageBody(
     newBinnacles,
     newNotifications,
     totalNewBinnacles: newBinnacleChanges.length,
-    totalNewNotifications: newNotificationChanges.length,
+    totalNewNotifications: newNotificationChanges.length + embeddedNotificationCount,
   };
 }
 
