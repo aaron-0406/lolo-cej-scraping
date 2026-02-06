@@ -61,9 +61,13 @@ export class HCaptchaStrategy implements CaptchaSolverStrategy {
       return { solved: false, strategy: "hcaptcha" };
     }
 
-    const pageurl = page.url();
+    // Get the page URL, but if we're on Radware antibot page, extract the original site URL
+    // from the 'ssc' parameter (CapSolver doesn't support validate.perfdrive.com domain)
+    const rawUrl = page.url();
+    const pageurl = this.extractOriginalUrl(rawUrl);
+
     logger.info(
-      { sitekey: sitekey.substring(0, 12) + "...", pageurl },
+      { sitekey: sitekey.substring(0, 12) + "...", pageurl, rawUrl: rawUrl !== pageurl ? rawUrl : undefined },
       "hCaptcha: extracted sitekey, sending to CapSolver"
     );
 
@@ -124,6 +128,41 @@ export class HCaptchaStrategy implements CaptchaSolverStrategy {
 
     logger.info("hCaptcha: solved and accepted by website");
     return { solved: true, strategy: "hcaptcha" };
+  }
+
+  /**
+   * Extract the original site URL from Radware antibot page.
+   * Radware stores the original URL in the 'ssc' query parameter.
+   * CapSolver doesn't support validate.perfdrive.com, so we need the original site URL.
+   */
+  private extractOriginalUrl(url: string): string {
+    try {
+      // Check if this is a Radware antibot URL
+      if (!url.includes("validate.perfdrive.com")) {
+        return url;
+      }
+
+      const urlObj = new URL(url);
+      const ssc = urlObj.searchParams.get("ssc");
+
+      if (ssc) {
+        // ssc contains the original URL, URL-encoded
+        const originalUrl = decodeURIComponent(ssc);
+        logger.debug(
+          { radwareUrl: url.substring(0, 50) + "...", originalUrl },
+          "hCaptcha: extracted original URL from Radware ssc parameter"
+        );
+        return originalUrl;
+      }
+    } catch (error) {
+      logger.warn(
+        { error: (error as Error).message, url: url.substring(0, 100) },
+        "hCaptcha: failed to extract original URL from Radware page"
+      );
+    }
+
+    // Fallback to the original URL if extraction fails
+    return url;
   }
 
   /**
