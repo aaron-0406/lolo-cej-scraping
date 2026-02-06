@@ -19,7 +19,7 @@ import { TwoCaptchaApiError } from "../../shared/errors/captcha.errors";
 
 const API_BASE = "https://2captcha.com";
 const POLL_INTERVAL_MS = 5000; // 2Captcha recommends 5 seconds between polls
-const MAX_POLL_ATTEMPTS = 60; // 5 minutes max wait (human workers need more time)
+const MAX_POLL_ATTEMPTS = 60; // 5 minutes max wait (human workers need time)
 
 export class TwoCaptchaClient {
   private apiKey: string;
@@ -48,22 +48,30 @@ export class TwoCaptchaClient {
     }
 
     try {
-      // Step 1: Submit the hCaptcha task
+      // Step 1: Submit the hCaptcha task using POST with form data
       logger.info(
         { sitekey: sitekey.substring(0, 12) + "...", pageurl },
         "2Captcha: submitting hCaptcha"
       );
 
-      const submitResponse = await axios.get(`${API_BASE}/in.php`, {
-        params: {
-          key: this.apiKey,
-          method: "hcaptcha",
-          sitekey,
-          pageurl,
-          json: 1,
-        },
-        timeout: 30000,
-      });
+      // Use POST with URL-encoded form data (more reliable than GET)
+      const params = new URLSearchParams();
+      params.append("key", this.apiKey);
+      params.append("method", "hcaptcha");
+      params.append("sitekey", sitekey);
+      params.append("pageurl", pageurl);
+      params.append("json", "1");
+
+      const submitResponse = await axios.post(
+        `${API_BASE}/in.php`,
+        params.toString(),
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          timeout: 30000,
+        }
+      );
 
       const submitData = submitResponse.data;
 
@@ -95,8 +103,8 @@ export class TwoCaptchaClient {
    * Human workers typically take 20-60 seconds.
    */
   private async pollResult(taskId: string): Promise<string | null> {
-    // Wait initial 10 seconds before first poll (2Captcha recommendation)
-    await new Promise((resolve) => setTimeout(resolve, 10000));
+    // Wait initial 15 seconds before first poll (2Captcha recommendation for hCaptcha)
+    await new Promise((resolve) => setTimeout(resolve, 15000));
 
     for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
       try {
@@ -124,9 +132,9 @@ export class TwoCaptchaClient {
 
         if (data.request === "CAPCHA_NOT_READY") {
           // Still processing
-          if (i > 0 && i % 6 === 0) {
+          if (i > 0 && i % 4 === 0) {
             logger.debug(
-              { taskId, elapsed: `${10 + (i * POLL_INTERVAL_MS) / 1000}s` },
+              { taskId, elapsed: `${15 + (i * POLL_INTERVAL_MS) / 1000}s` },
               "2Captcha: still waiting for hCaptcha solution"
             );
           }
@@ -147,7 +155,7 @@ export class TwoCaptchaClient {
     }
 
     logger.warn(
-      { taskId, maxWait: `${10 + (MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS) / 1000}s` },
+      { taskId, maxWait: `${15 + (MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS) / 1000}s` },
       "2Captcha: hCaptcha polling timed out"
     );
     return null;
@@ -169,6 +177,7 @@ export class TwoCaptchaClient {
       IP_BANNED: "IP address is banned",
       ERROR_SITEKEY: "invalid sitekey",
       ERROR_PAGEURL: "invalid page URL",
+      ERROR_METHOD_CALL: "invalid method or parameters",
     };
 
     const message = errorMessages[errorCode] || `unknown error: ${errorCode}`;

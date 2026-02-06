@@ -12,7 +12,14 @@
       "WebFetch(domain:www.blackhatworld.com)",
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:dolphin-anty.com)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:captchaforum.com)",
+      "WebFetch(domain:beta.2captcha.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:forum.codeproject.com)",
+      "WebFetch(domain:anti-captcha.com)",
+      "WebFetch(domain:www.skyvern.com)",
+      "WebFetch(domain:python-anticaptcha.readthedocs.io)"
     ]
   }
 }

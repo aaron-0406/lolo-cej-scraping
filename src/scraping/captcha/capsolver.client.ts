@@ -70,6 +70,16 @@ export class CapSolverClient {
    * or null if solving failed.
    */
   async solveHCaptcha(sitekey: string, pageurl: string): Promise<string | null> {
+    // Log API key status for debugging
+    if (!this.apiKey || this.apiKey.length === 0) {
+      logger.error("CapSolver: API key is NOT configured (CAPTCHA_API_KEY env var missing)");
+      throw new CapSolverApiError("CapSolver API key not configured");
+    }
+    logger.debug(
+      { keyPrefix: this.apiKey.substring(0, 8) + "...", keyLength: this.apiKey.length },
+      "CapSolver: using API key"
+    );
+
     // Try different task types - Radware may use hCaptcha Enterprise
     const taskTypes = [
       "HCaptchaEnterpriseTaskProxyLess",

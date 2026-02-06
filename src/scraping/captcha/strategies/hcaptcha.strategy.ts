@@ -6,13 +6,11 @@
  * escalates.
  *
  * Uses CapSolver API first, falls back to 2Captcha if CapSolver fails.
- * CapSolver no longer supports hCaptcha (as of late 2025), so 2Captcha
- * with human workers is used as the primary solver.
  *
  * Flow:
  * 1. Detect hCaptcha iframe on the page
  * 2. Extract sitekey from the iframe src or data attribute
- * 3. Try CapSolver first (in case support is restored)
+ * 3. Try CapSolver first
  * 4. Fall back to 2Captcha (human workers)
  * 5. Inject token into h-captcha-response and g-recaptcha-response
  * 6. Submit the form / trigger the callback
@@ -80,7 +78,7 @@ export class HCaptchaStrategy implements CaptchaSolverStrategy {
     let token: string | null = null;
     let solverUsed = "unknown";
 
-    // Try CapSolver first (in case hCaptcha support is restored)
+    // Try CapSolver first
     try {
       token = await this.capSolver.solveHCaptcha(sitekey, pageurl);
       if (token) {

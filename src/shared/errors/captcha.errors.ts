@@ -21,6 +21,14 @@ export class TwoCaptchaApiError extends Error {
   }
 }
 
+/** Anti-Captcha API returned an error or timed out */
+export class AntiCaptchaApiError extends Error {
+  constructor(message: string = "Anti-Captcha API error") {
+    super(message);
+    this.name = "AntiCaptchaApiError";
+  }
+}
+
 /** CAPTCHA image could not be extracted from the page */
 export class CaptchaImageExtractionError extends Error {
   constructor(message: string = "Could not extract CAPTCHA image") {
