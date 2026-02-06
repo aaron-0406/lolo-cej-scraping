@@ -43,14 +43,19 @@ export class TwoCaptchaClient {
    */
   async solveHCaptcha(sitekey: string, pageurl: string): Promise<string | null> {
     if (!this.isConfigured()) {
-      logger.warn("2Captcha: API key not configured");
+      logger.warn("2Captcha: API key not configured (TWO_CAPTCHA_API_KEY env var missing)");
       return null;
     }
 
     try {
       // Step 1: Submit the hCaptcha task using POST with form data
       logger.info(
-        { sitekey: sitekey.substring(0, 12) + "...", pageurl },
+        {
+          sitekey: sitekey.substring(0, 12) + "...",
+          pageurl,
+          apiKeyPrefix: this.apiKey.substring(0, 8) + "...",
+          apiKeyLength: this.apiKey.length
+        },
         "2Captcha: submitting hCaptcha"
       );
 
@@ -61,6 +66,16 @@ export class TwoCaptchaClient {
       params.append("sitekey", sitekey);
       params.append("pageurl", pageurl);
       params.append("json", "1");
+
+      logger.debug(
+        {
+          method: "hcaptcha",
+          sitekey,
+          pageurl,
+          requestBody: params.toString().replace(this.apiKey, "***REDACTED***")
+        },
+        "2Captcha: full request details"
+      );
 
       const submitResponse = await axios.post(
         `${API_BASE}/in.php`,
