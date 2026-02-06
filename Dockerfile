@@ -9,36 +9,11 @@ COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npm run build
 
-# Stage 2: Runtime
-FROM node:18-slim
+# Stage 2: Runtime - Use official Puppeteer image
+FROM ghcr.io/puppeteer/puppeteer:23.11.1
 
-# Install Chromium and dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
-    fonts-liberation \
-    fonts-noto-color-emoji \
-    libappindicator3-1 \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libgdk-pixbuf2.0-0 \
-    libnspr4 \
-    libnss3 \
-    libx11-xcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    xdg-utils \
-    dumb-init \
-    && rm -rf /var/lib/apt/lists/*
-
-# Puppeteer configuration
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENV CHROME_PATH=/usr/bin/chromium
-ENV CHROMIUM_FLAGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --no-zygote --single-process --disable-extensions"
+# Switch to root temporarily to set up the app
+USER root
 
 WORKDIR /app
 
@@ -46,14 +21,17 @@ COPY --from=builder /prod_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package.json ./
 
-# Create non-root user
-RUN groupadd -r scraper && useradd -r -g scraper scraper && \
-    chown -R scraper:scraper /app
+# Give ownership to pptruser (the default user in puppeteer image)
+RUN chown -R pptruser:pptruser /app
 
-USER scraper
+# Switch back to non-root user
+USER pptruser
+
+# Puppeteer in this image is pre-configured
+# The browser is at /usr/bin/google-chrome-stable
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 EXPOSE 4000
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/index.js"]

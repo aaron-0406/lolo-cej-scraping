@@ -29,12 +29,5 @@ export const LAUNCH_ARGS: string[] = [
   "--disable-setuid-sandbox",
   "--disable-dev-shm-usage",
   "--disable-blink-features=AutomationControlled",
-  // Disable crash reporter (causes errors in containers)
-  "--disable-crashpad",
-  "--disable-breakpad",
-  // Additional stability flags for containers
   "--disable-gpu",
-  "--disable-software-rasterizer",
-  "--no-zygote",
-  "--single-process",
 ];
