@@ -64,57 +64,94 @@ export class CapSolverClient {
 
   /**
    * Solve an hCaptcha challenge via the CapSolver API.
+   * Tries multiple task types in order: Enterprise, Turbo, then standard.
    *
    * Returns the solution token to inject into h-captcha-response,
    * or null if solving failed.
    */
   async solveHCaptcha(sitekey: string, pageurl: string): Promise<string | null> {
-    try {
-      logger.info(
-        { sitekey: sitekey.substring(0, 12) + "...", pageurl },
-        "CapSolver: submitting hCaptcha"
-      );
+    // Try different task types - Radware may use hCaptcha Enterprise
+    const taskTypes = [
+      "HCaptchaEnterpriseTaskProxyLess",
+      "HCaptchaTurboTask",
+      "HCaptchaTaskProxyLess",
+    ];
 
-      const response = await axios.post(
-        `${API_URL}/createTask`,
-        {
-          clientKey: this.apiKey,
-          task: {
-            type: "HCaptchaTaskProxyLess",
-            websiteURL: pageurl,
-            websiteKey: sitekey,
+    for (const taskType of taskTypes) {
+      try {
+        logger.info(
+          { sitekey: sitekey.substring(0, 12) + "...", pageurl, taskType },
+          "CapSolver: submitting hCaptcha"
+        );
+
+        const response = await axios.post(
+          `${API_URL}/createTask`,
+          {
+            clientKey: this.apiKey,
+            task: {
+              type: taskType,
+              websiteURL: pageurl,
+              websiteKey: sitekey,
+              userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.204 Safari/537.36",
+            },
           },
-        },
-        { timeout: 30000 }
-      );
+          { timeout: 30000 }
+        );
 
-      if (response.data.errorId !== 0) {
-        this.logApiError(response.data, "hCaptcha submit");
-        return null;
+        if (response.data.errorId !== 0) {
+          const errorCode = response.data.errorCode || "UNKNOWN";
+          // If this task type is not supported, try the next one
+          if (errorCode === "ERROR_INVALID_TASK_DATA") {
+            logger.warn(
+              { taskType, errorCode },
+              "CapSolver: task type not supported, trying next"
+            );
+            continue;
+          }
+          this.logApiError(response.data, "hCaptcha submit");
+          return null;
+        }
+
+        const taskId = response.data.taskId;
+        logger.info({ taskId, taskType }, "CapSolver: hCaptcha submitted, polling for solution");
+
+        // Poll for solution (hCaptcha takes 20-60s typically)
+        const result = await this.pollHCaptchaResult(taskId);
+        if (result) {
+          return result;
+        }
+      } catch (error: any) {
+        // Extract detailed error info from axios
+        const responseData = error.response?.data;
+        const statusCode = error.response?.status;
+        const errorCode = responseData?.errorCode;
+
+        // If this task type is not supported, try the next one
+        if (statusCode === 400 && errorCode === "ERROR_INVALID_TASK_DATA") {
+          logger.warn(
+            { taskType, errorCode },
+            "CapSolver: task type not supported, trying next"
+          );
+          continue;
+        }
+
+        const msg = error.message || "Unknown error";
+        logger.error(
+          {
+            error: msg,
+            statusCode,
+            responseData,
+            taskType,
+            sitekey: sitekey.substring(0, 12) + "...",
+          },
+          "CapSolver: hCaptcha request failed"
+        );
+        // Don't throw yet, try next task type
       }
-
-      const taskId = response.data.taskId;
-      logger.info({ taskId }, "CapSolver: hCaptcha submitted, polling for solution");
-
-      // Poll for solution (hCaptcha takes 20-60s typically)
-      return await this.pollHCaptchaResult(taskId);
-    } catch (error: any) {
-      // Extract detailed error info from axios
-      const responseData = error.response?.data;
-      const statusCode = error.response?.status;
-      const msg = error.message || "Unknown error";
-
-      logger.error(
-        {
-          error: msg,
-          statusCode,
-          responseData,
-          sitekey: sitekey.substring(0, 12) + "...",
-        },
-        "CapSolver: hCaptcha request failed"
-      );
-      throw new CapSolverApiError(`hCaptcha solve failed: ${msg}`);
     }
+
+    // All task types failed
+    throw new CapSolverApiError("hCaptcha solve failed: all task types exhausted");
   }
 
   /**
