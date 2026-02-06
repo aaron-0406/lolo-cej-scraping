@@ -5,13 +5,15 @@
  * (validate.perfdrive.com) or directly on CEJ when bot detection
  * escalates.
  *
- * Uses the CapSolver API with HCaptchaTaskProxyLess task type.
+ * Uses CapSolver API first, falls back to 2Captcha if CapSolver fails.
+ * CapSolver no longer supports hCaptcha (as of late 2025), so 2Captcha
+ * with human workers is used as the primary solver.
  *
  * Flow:
  * 1. Detect hCaptcha iframe on the page
  * 2. Extract sitekey from the iframe src or data attribute
- * 3. Send sitekey + pageurl to CapSolver
- * 4. Poll for the solution token
+ * 3. Try CapSolver first (in case support is restored)
+ * 4. Fall back to 2Captcha (human workers)
  * 5. Inject token into h-captcha-response and g-recaptcha-response
  * 6. Submit the form / trigger the callback
  */
@@ -19,14 +21,17 @@ import { Page } from "puppeteer";
 import { CaptchaSolverStrategy } from "../captcha-solver";
 import { CaptchaResult } from "../../../shared/types/cej.types";
 import { CapSolverClient } from "../capsolver.client";
+import { TwoCaptchaClient } from "../twocaptcha.client";
 import { logger } from "../../../monitoring/logger";
 
 export class HCaptchaStrategy implements CaptchaSolverStrategy {
   name = "hcaptcha";
   private capSolver: CapSolverClient;
+  private twoCaptcha: TwoCaptchaClient;
 
-  constructor(capSolver?: CapSolverClient) {
+  constructor(capSolver?: CapSolverClient, twoCaptcha?: TwoCaptchaClient) {
     this.capSolver = capSolver || new CapSolverClient();
+    this.twoCaptcha = twoCaptcha || new TwoCaptchaClient();
   }
 
   /**
@@ -68,29 +73,58 @@ export class HCaptchaStrategy implements CaptchaSolverStrategy {
 
     logger.info(
       { sitekey: sitekey.substring(0, 12) + "...", pageurl, rawUrl: rawUrl !== pageurl ? rawUrl : undefined },
-      "hCaptcha: extracted sitekey, sending to CapSolver"
+      "hCaptcha: extracted sitekey, attempting solve"
     );
 
-    // Step 2: Solve via CapSolver API
-    let token: string | null;
+    // Step 2: Try CapSolver first, then fall back to 2Captcha
+    let token: string | null = null;
+    let solverUsed = "unknown";
+
+    // Try CapSolver first (in case hCaptcha support is restored)
     try {
       token = await this.capSolver.solveHCaptcha(sitekey, pageurl);
+      if (token) {
+        solverUsed = "capsolver";
+        logger.info("hCaptcha: solved via CapSolver");
+      }
     } catch (error) {
-      logger.error(
+      logger.warn(
         { error: (error as Error).message },
-        "hCaptcha: CapSolver API error (not a website rejection — the API itself failed)"
+        "hCaptcha: CapSolver failed, trying 2Captcha fallback"
       );
-      return { solved: false, strategy: "hcaptcha" };
+    }
+
+    // Fall back to 2Captcha if CapSolver failed
+    if (!token) {
+      try {
+        if (!this.twoCaptcha.isConfigured()) {
+          logger.error("hCaptcha: 2Captcha API key not configured, cannot solve");
+          return { solved: false, strategy: "hcaptcha" };
+        }
+
+        logger.info("hCaptcha: attempting solve via 2Captcha (human workers)");
+        token = await this.twoCaptcha.solveHCaptcha(sitekey, pageurl);
+        if (token) {
+          solverUsed = "2captcha";
+          logger.info("hCaptcha: solved via 2Captcha");
+        }
+      } catch (error) {
+        logger.error(
+          { error: (error as Error).message },
+          "hCaptcha: 2Captcha API error"
+        );
+        return { solved: false, strategy: "hcaptcha" };
+      }
     }
 
     if (!token) {
-      logger.warn("hCaptcha: CapSolver returned no token");
+      logger.warn("hCaptcha: all solvers failed to return a token");
       return { solved: false, strategy: "hcaptcha" };
     }
 
     logger.info(
-      { tokenLength: token.length },
-      "hCaptcha: got token from CapSolver, injecting into page"
+      { tokenLength: token.length, solver: solverUsed },
+      "hCaptcha: got token, injecting into page"
     );
 
     // Step 3: Inject token into the page
@@ -119,14 +153,14 @@ export class HCaptchaStrategy implements CaptchaSolverStrategy {
 
     if (stillBlocked) {
       logger.warn(
-        { url: currentUrl },
-        "hCaptcha: token was solved by CapSolver but REJECTED by the website — " +
+        { url: currentUrl, solver: solverUsed },
+        "hCaptcha: token was solved but REJECTED by the website — " +
         "the site did not accept the token (IP mismatch, expired, or additional checks)"
       );
       return { solved: false, strategy: "hcaptcha" };
     }
 
-    logger.info("hCaptcha: solved and accepted by website");
+    logger.info({ solver: solverUsed }, "hCaptcha: solved and accepted by website");
     return { solved: true, strategy: "hcaptcha" };
   }
 

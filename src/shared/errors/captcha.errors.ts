@@ -13,6 +13,14 @@ export class CapSolverApiError extends Error {
   }
 }
 
+/** 2Captcha API returned an error or timed out */
+export class TwoCaptchaApiError extends Error {
+  constructor(message: string = "2Captcha API error") {
+    super(message);
+    this.name = "TwoCaptchaApiError";
+  }
+}
+
 /** CAPTCHA image could not be extracted from the page */
 export class CaptchaImageExtractionError extends Error {
   constructor(message: string = "Could not extract CAPTCHA image") {

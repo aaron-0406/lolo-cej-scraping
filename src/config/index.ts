@@ -48,6 +48,9 @@ const config = {
   // --- CapSolver ---
   captchaApiKey: process.env.CAPTCHA_API_KEY || "",
 
+  // --- 2Captcha (fallback for hCaptcha) ---
+  twoCaptchaApiKey: process.env.TWO_CAPTCHA_API_KEY || "",
+
   // --- CEJ Website ---
   cejBaseUrl:
     process.env.CEJ_BASE_URL ||
