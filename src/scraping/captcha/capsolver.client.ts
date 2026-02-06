@@ -98,9 +98,21 @@ export class CapSolverClient {
 
       // Poll for solution (hCaptcha takes 20-60s typically)
       return await this.pollHCaptchaResult(taskId);
-    } catch (error) {
-      const msg = (error as Error).message;
-      logger.error({ error: msg }, "CapSolver: hCaptcha request failed (network/timeout)");
+    } catch (error: any) {
+      // Extract detailed error info from axios
+      const responseData = error.response?.data;
+      const statusCode = error.response?.status;
+      const msg = error.message || "Unknown error";
+
+      logger.error(
+        {
+          error: msg,
+          statusCode,
+          responseData,
+          sitekey: sitekey.substring(0, 12) + "...",
+        },
+        "CapSolver: hCaptcha request failed"
+      );
       throw new CapSolverApiError(`hCaptcha solve failed: ${msg}`);
     }
   }
