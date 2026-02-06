@@ -150,8 +150,7 @@ export class BrowserPool {
       defaultViewport: { width: 1280, height: 720 },
       timeout: config.navigationTimeoutMs,
       slowMo: 5, // Small delay between Puppeteer actions (matches old working scraper)
-      // Use system Chromium in containers (PUPPETEER_EXECUTABLE_PATH env var)
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      // Let Puppeteer use its bundled Chrome (no executablePath needed)
     });
 
     // Override HeadlessChrome UA to avoid Radware detection.

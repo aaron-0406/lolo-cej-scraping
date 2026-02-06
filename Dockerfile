@@ -27,10 +27,8 @@ RUN chown -R pptruser:pptruser /app
 # Switch back to non-root user
 USER pptruser
 
-# Puppeteer in this image is pre-configured
-# The browser is at /usr/bin/google-chrome-stable
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Puppeteer in this image uses its bundled Chrome automatically
+# No need to set PUPPETEER_EXECUTABLE_PATH
 
 EXPOSE 4000
 
